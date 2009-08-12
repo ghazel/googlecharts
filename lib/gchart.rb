@@ -52,6 +52,7 @@ class Gchart
       @horizontal = false
       @grouped = false
       @encoding = 'simple'
+      @min_value = 'auto'
       @max_value = 'auto'
       # Sets the alt tag when chart is exported as image tag
       @alt = 'Google Chart'
@@ -118,13 +119,8 @@ class Gchart
   # it also sets the data range if not defined
   def full_data_range(ds)
     return [@min, @max] unless (@min.nil? || @max.nil?)
-    @max = (max_value.nil? || max_value == 'auto') ? ds.compact.map{|mds| mds.compact.max}.max : max_value
-    if (min_value.nil? || min_value == 'auto') 
-      min_ds_value = ds.compact.map{|mds| mds.compact.min}.min || 0
-      @min = (min_ds_value < 0) ? min_ds_value : 0
-    else
-      @min = min_value  
-    end 
+    @max = (max_value.nil? || max_value == 'auto') ? ds.compact.map{|mds| mds.compact.max}.max || 0 : max_value
+    @min = (min_value.nil? || min_value == 'auto') ? ds.compact.map{|mds| mds.compact.min}.min || 0 : min_value
     @axis_range = [[@min,@max]]
   end
   
@@ -374,31 +370,38 @@ class Gchart
     ds = [ds] unless ds.first.is_a?(Array)
     ds
   end
-  
-  def convert_to_simple_value(number)
-    if number.nil?
-      "_"
-    else
-      value = @@simple_chars[number.to_i]
-      value.nil? ? "_" : value
+
+  def encode_scaled_dataset chars, nil_char
+    @max_value = dataset.compact.map{|ds| ds.compact.max}.max if (@max_value == 'auto' || @max_value == nil)
+    @min_value = dataset.compact.map{|ds| ds.compact.min}.min if (@min_value == 'auto' || @min_value == nil)
+
+    if not (@max_value == false || @max_value == 'false' || @max_value == :false)
+      range = @max_value - @min_value
+      last_char = chars.size - 1
     end
+
+    dataset.map do |ds|
+      ds.map do |number|
+       if number.nil?
+         nil_char
+       else
+         if not range.nil?
+           number = (last_char * (number - @min_value) / range).round
+         end
+         chars[number.to_i]
+       end
+      end.join
+    end.join(',')
   end
-  
+
   # http://code.google.com/apis/chart/#simple
   # Simple encoding has a resolution of 62 different values. 
   # Allowing five pixels per data point, this is sufficient for line and bar charts up
   # to about 300 pixels. Simple encoding is suitable for all other types of chart regardless of size.
   def simple_encoding
-    @max_value = dataset.compact.map{|ds| ds.compact.max}.max if @max_value == 'auto'
-    
-    if @max_value == false || @max_value == 'false' || @max_value == :false || @max_value == 0
-      "s:" + dataset.map { |ds| ds.map { |number| number.nil? ? '_' : convert_to_simple_value(number) }.join }.join(',')
-    else
-      "s:" + dataset.map { |ds| ds.map { |number| number.nil? ? '_' : convert_to_simple_value( (@@simple_chars.size - 1) * number / @max_value) }.join }.join(',')
-    end
-    
+    "s:" + encode_scaled_dataset(@@simple_chars, '_')
   end
-  
+
   # http://code.google.com/apis/chart/#text
   # Text encoding with data scaling lets you specify arbitrary positive or
   # negative floating point numbers, in combination with a scaling parameter
@@ -414,32 +417,14 @@ class Gchart
   def text_encoding
     "t:" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=#{@min},#{@max}"
   end
-  
-  def convert_to_extended_value(number)
-    if number.nil?
-      '__'
-    else
-      value = @@ext_pairs[number.to_i]
-      value.nil? ? "__" : value
-    end
-  end
 
-  
   # http://code.google.com/apis/chart/#extended
   # Extended encoding has a resolution of 4,096 different values 
   # and is best used for large charts where a large data range is required.
   def extended_encoding
-    @max_value = dataset.compact.map{|ds| ds.compact.max}.max if @max_value == 'auto'
-    
-    if @max_value == false || @max_value == 'false' || @max_value == :false || @max_value == 0
-      "e:" +  dataset.map { |ds| ds.map { |number| number.nil? ? '__' : convert_to_extended_value(number)}.join }.join(',')
-    else
-      "e:" + dataset.map { |ds| ds.map { |number| number.nil? ? '__' : convert_to_extended_value( (@@ext_pairs.size - 1) * number / @max_value) }.join }.join(',')
-    end
-    
+    "e:" + encode_scaled_dataset(@@ext_pairs, '__')
   end
-  
-  
+
   def query_builder(options="")
     dataset 
     query_params = instance_variables.map do |var|
