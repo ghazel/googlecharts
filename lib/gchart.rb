@@ -17,7 +17,7 @@ class Gchart
   @@ext_pairs = @@chars.map { |char_1| @@chars.map { |char_2| char_1 + char_2 } }.flatten
   @@file_name = 'chart.png'
   
-  attr_accessor :title, :type, :width, :height, :horizontal, :grouped, :legend, :data, :encoding, :min_value, :max_value, :bar_colors,
+  attr_accessor :title, :type, :width, :height, :horizontal, :grouped, :legend, :data, :encoding, :bar_colors,
                 :title_color, :title_size, :custom, :axis_with_labels, :axis_labels, :bar_width_and_spacing, :id, :alt, :class,
                 :range_markers, :geographical_area, :map_colors, :country_codes, :axis_range
     
@@ -52,8 +52,8 @@ class Gchart
       @horizontal = false
       @grouped = false
       @encoding = 'simple'
-      @min_value = 'auto'
-      @max_value = 'auto'
+      self.min_value = 'auto'
+      self.max_value = 'auto'
       # Sets the alt tag when chart is exported as image tag
       @alt = 'Google Chart'
       # Sets the CSS id selector when chart is exported as image tag
@@ -62,7 +62,7 @@ class Gchart
       @class = false
 
       # set the options value if definable
-      options.each do |attribute, value| 
+      options.each do |attribute, value|
           send("#{attribute.to_s}=", value) if self.respond_to?("#{attribute}=")
       end
   end
@@ -114,21 +114,31 @@ class Gchart
       @chart_angle = options[:angle]
     end
   end
-  
-  # normalizes the min and max value options
+
+  def max_value=(max_value)
+    @max_value = max_value
+    @max_value = nil if @max_value == 'auto' || @max_value == :auto
+    @max_value = false if @max_value == 'false' || @max_value == :false
+  end
+
+  def min_value=(min_value)
+    @min_value = min_value
+    @min_value = nil if min_value == 'auto' || min_value == :auto
+    @min_value = false if min_value == 'false' || min_value == :false
+  end
+
+  # auto sets the range if required
   # it also sets the axis_range if not defined
   def full_data_range(ds)
-    @min_value = nil if @min_value == 'auto'
-    @max_value = nil if @max_value == 'auto'
-
-    @min_value = false if @min_value == 'false' || @min_value == :false
-    @max_value = false if @max_value == 'false' || @max_value == :false
-
-    @min_value = ds.compact.map{|mds| mds.compact.min}.min if min_value.nil?
-    @max_value = ds.compact.map{|mds| mds.compact.max}.max if max_value.nil?
+    @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
+    @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
 
     if not @axis_range and not @max_value == false
-      @axis_range = [[@min_value, @max_value]]
+      if @horizontal
+        @axis_range = [[@min_value, @max_value]]
+      else
+        @axis_range = [[], [@min_value, @max_value]]
+      end
     end
   end
   
