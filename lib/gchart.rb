@@ -318,12 +318,16 @@ class Gchart
   end
   
   def set_axis_labels
-    labels_arr = []
-    axis_labels.each_with_index do |labels,index| 
+    if axis_labels.is_a?(Array)
+      labels_arr = axis_labels.enum_with_index.map{|labels,index| [index,labels]}
+    elsif axis_labels.is_a?(Hash)
+      labels_arr = axis_labels.to_a
+    end
+    labels_arr.map! do |index,labels|
       if labels.is_a?(Array)
-        labels_arr << "#{index}:|#{labels.join('|')}"
+        "#{index}:|#{labels.to_a.join('|')}"
       else
-        labels_arr << "#{index}:|#{labels}"
+        "#{index}:|#{labels}"
       end
     end
     "chxl=#{labels_arr.join('|')}"
