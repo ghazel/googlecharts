@@ -80,7 +80,12 @@ class Gchart
   def size
     "#{@width}x#{@height}"
   end
-  
+
+  def dimensions
+    # TODO: maybe others?
+    [:line_xy, :scatter].include?(@type) ? 2 : 1
+  end
+
   # Sets the orientation of a bar graph
   def orientation=(orientation='h')
     if orientation == 'h' || orientation == 'horizontal'
@@ -117,27 +122,47 @@ class Gchart
 
   def max_value=(max_value)
     @max_value = max_value
-    @max_value = nil if @max_value == 'auto' || @max_value == :auto
-    @max_value = false if @max_value == 'false' || @max_value == :false
+    @max_value = nil if ['auto', :auto].include? @max_value
+    @max_value = false if ['false', :false].include? @max_value
   end
 
   def min_value=(min_value)
     @min_value = min_value
-    @min_value = nil if min_value == 'auto' || min_value == :auto
-    @min_value = false if min_value == 'false' || min_value == :false
+    @min_value = nil if ['auto', :auto].include? @min_value
+    @min_value = false if ['false', :false].include? @min_value
   end
 
   # auto sets the range if required
   # it also sets the axis_range if not defined
   def full_data_range(ds)
-    @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
-    @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
+    return if @max_value == false
 
-    if not @axis_range and not @max_value == false
-      if @horizontal
-        @axis_range = [[@min_value, @max_value]]
-      else
-        @axis_range = [[], [@min_value, @max_value]]
+    @axis = []
+    # TODO: text encoding should use @axis too
+    if dimensions == 2 and @encoding != :text
+      ds.each_with_index do |mds,index|
+        cmds = mds.compact
+        if cmds.empty?
+          @axis << nil
+          next
+        end
+        @axis[index%dimensions] ||= []
+        ax = @axis[index%dimensions]
+        ax[0] = @min_value.nil? ? [ax[0], cmds.min].compact.min : @min_value
+        ax[1] = @max_value.nil? ? [ax[0], cmds.max].compact.max : @max_value
+      end
+    else
+      @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
+      @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
+      @axis << [@min_value, @max_value]
+    end
+
+    if not @axis_range
+      @axis_range = @axis.map{|axis| axis.nil? ? [] : axis}
+      if @type != :line_xy and (@type != :bar or not @horizontal)
+        tmp = @axis_range.fetch(0, [])
+        @axis_range[0] = @axis_range.fetch(1, [])
+        @axis_range[1] = tmp
       end
     end
   end
@@ -394,19 +419,21 @@ class Gchart
   end
 
   def encode_scaled_dataset chars, nil_char
-    if @max_value != false
-      range = @max_value - @min_value
-      last_char = chars.size - 1
-      range = 1 if range == 0
-    end
+    last_char = chars.size - 1
 
-    dataset.map do |ds|
+    dataset.enum_with_index.map do |ds, index|
+      if @max_value != false
+        ax = @axis[index%dimensions]
+        min = ax[0]
+        range = ax[1] - min
+        range = 1 if range == 0
+      end
       ds.map do |number|
        if number.nil?
          nil_char
        else
          if not range.nil?
-           number = (last_char * (number - @min_value) / range).round
+           number = (last_char * (number - min) / range).round
          end
          chars[number.to_i]
        end
@@ -435,6 +462,7 @@ class Gchart
   # This encoding is not available for maps.
   #
   def text_encoding
+    # TODO: text encoding should use @axis too
     "t:" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=#{@min_value},#{@max_value}"
   end
 
