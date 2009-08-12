@@ -63,7 +63,7 @@ describe "generating a default Gchart" do
   end  
   
   it "should handle max and min values with text encoding" do
-    Gchart.line(:data => [10, 5.2, 4, 45, 78], :encoding => 'text').include?('chds=0,78').should be_true
+    Gchart.line(:data => [10, 5.2, 4, 45, 78], :encoding => 'text').include?('chds=4,78').should be_true
   end
   
   it "should automatically handle negative values with proper max/min limits when using text encoding" do

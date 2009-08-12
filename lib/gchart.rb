@@ -115,18 +115,26 @@ class Gchart
     end
   end
   
-  # returns the full data range as an array
-  # it also sets the data range if not defined
+  # normalizes the min and max value options
+  # it also sets the axis_range if not defined
   def full_data_range(ds)
-    return [@min, @max] unless (@min.nil? || @max.nil?)
-    @max = (max_value.nil? || max_value == 'auto') ? ds.compact.map{|mds| mds.compact.max}.max || 0 : max_value
-    @min = (min_value.nil? || min_value == 'auto') ? ds.compact.map{|mds| mds.compact.min}.min || 0 : min_value
-    @axis_range = [[@min,@max]]
+    @min_value = nil if @min_value == 'auto'
+    @max_value = nil if @max_value == 'auto'
+
+    @min_value = false if @min_value == 'false' || @min_value == :false
+    @max_value = false if @max_value == 'false' || @max_value == :false
+
+    @min_value = ds.compact.map{|mds| mds.compact.min}.min if min_value.nil?
+    @max_value = ds.compact.map{|mds| mds.compact.max}.max if max_value.nil?
+
+    if not @axis_range and not @max_value == false
+      @axis_range = [[@min_value, @max_value]]
+    end
   end
   
   def dataset
     @dataset ||= prepare_dataset(data)
-    full_data_range(@dataset) unless @axis_range
+    full_data_range(@dataset)
     @dataset
   end
   
@@ -372,12 +380,10 @@ class Gchart
   end
 
   def encode_scaled_dataset chars, nil_char
-    @max_value = dataset.compact.map{|ds| ds.compact.max}.max if (@max_value == 'auto' || @max_value == nil)
-    @min_value = dataset.compact.map{|ds| ds.compact.min}.min if (@min_value == 'auto' || @min_value == nil)
-
-    if not (@max_value == false || @max_value == 'false' || @max_value == :false)
+    if @max_value != false
       range = @max_value - @min_value
       last_char = chars.size - 1
+      range = 1 if range == 0
     end
 
     dataset.map do |ds|
@@ -415,7 +421,7 @@ class Gchart
   # This encoding is not available for maps.
   #
   def text_encoding
-    "t:" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=#{@min},#{@max}"
+    "t:" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=#{@min_value},#{@max_value}"
   end
 
   # http://code.google.com/apis/chart/#extended
