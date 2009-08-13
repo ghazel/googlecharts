@@ -419,8 +419,6 @@ class Gchart
   end
 
   def encode_scaled_dataset chars, nil_char
-    last_char = chars.size - 1
-
     dataset.enum_with_index.map do |ds, index|
       if @max_value != false
         ax = @axis[index%dimensions]
@@ -433,7 +431,8 @@ class Gchart
          nil_char
        else
          if not range.nil?
-           number = (last_char * (number - min) / range).round
+           number = chars.size * (number - min) / range
+           number = [number, chars.size - 1].min
          end
          chars[number.to_i]
        end
