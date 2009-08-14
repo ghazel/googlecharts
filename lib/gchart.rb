@@ -142,10 +142,7 @@ class Gchart
     if dimensions == 2 and @encoding != :text
       ds.each_with_index do |mds,index|
         cmds = mds.compact
-        if cmds.empty?
-          @axis << nil
-          next
-        end
+        next if cmds.empty?
         @axis[index%dimensions] ||= []
         ax = @axis[index%dimensions]
         ax[0] = @min_value.nil? ? [ax[0], cmds.min].compact.min : @min_value
