@@ -152,8 +152,23 @@ class Gchart
         ax[1] = @max_value.nil? ? [ax[0], cmds.max].compact.max : @max_value
       end
     else
-      @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
-      @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
+      if @type == :bar and not grouped
+        @min_value = ds.compact.first.compact.min if @min_value.nil?
+        if @max_value.nil?
+          totals = []
+          ds.compact.each do |mds|
+            mds.each_with_index do |v, index|
+              next if v.nil?
+              totals[index] ||= 0
+              totals[index] += v
+            end
+          end
+          @max_value = totals.compact.max
+        end
+      else
+        @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
+        @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
+      end
       @axis << [@min_value, @max_value]
     end
 
