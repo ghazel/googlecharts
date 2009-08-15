@@ -6,10 +6,11 @@ require "uri"
 require "cgi"
 require 'enumerator'
 
+
 class Gchart
 
   include GchartInfo
-  
+
   @@url = "http://chart.apis.google.com/chart?"  
   @@types = ['line', 'line_xy', 'scatter', 'bar', 'venn', 'pie', 'pie_3d', 'jstize', 'sparkline', 'meter', 'map']
   @@simple_chars = ('A'..'Z').to_a + ('a'..'z').to_a + ('0'..'9').to_a
@@ -17,9 +18,11 @@ class Gchart
   @@ext_pairs = @@chars.map { |char_1| @@chars.map { |char_2| char_1 + char_2 } }.flatten
   @@file_name = 'chart.png'
   
-  attr_accessor :title, :type, :width, :height, :horizontal, :grouped, :legend, :data, :encoding, :bar_colors,
-                :title_color, :title_size, :custom, :axis_with_labels, :axis_labels, :bar_width_and_spacing, :id, :alt, :class,
-                :range_markers, :geographical_area, :map_colors, :country_codes, :axis_range
+  attr_accessor :title, :type, :width, :height, :horizontal, :grouped, :legend,
+                :data, :encoding, :bar_colors, :title_color,
+                :title_size, :custom, :axis_with_labels, :axis_labels,
+                :bar_width_and_spacing, :id, :alt, :class, :range_markers,
+                :geographical_area, :map_colors, :country_codes, :axis_range
     
   # Support for Gchart.line(:title => 'my title', :size => '400x600')
   def self.method_missing(m, options={})
@@ -46,14 +49,11 @@ class Gchart
   
   def initialize(options={})
       @type = :line
-      @data = []
       @width = 300
       @height = 200
       @horizontal = false
       @grouped = false
       @encoding = 'simple'
-      self.min_value = 'auto'
-      self.max_value = 'auto'
       # Sets the alt tag when chart is exported as image tag
       @alt = 'Google Chart'
       # Sets the CSS id selector when chart is exported as image tag
@@ -137,54 +137,94 @@ class Gchart
   def full_data_range(ds)
     return if @max_value == false
 
-    @axis = []
-    # TODO: text encoding should use @axis too
-    if dimensions == 2 and @encoding != :text
-      ds.each_with_index do |mds,index|
-        cmds = mds.compact
-        @axis[index%dimensions] ||= []
-        next if cmds.empty?
-        ax = @axis[index%dimensions]
-        ax[0] = @min_value.nil? ? [ax[0], cmds.min].compact.min : @min_value
-        ax[1] = @max_value.nil? ? [ax[0], cmds.max].compact.max : @max_value
-      end
-    else
-      if @type == :bar and not grouped
-        @min_value = ds.compact.first.compact.min if @min_value.nil?
-        if @max_value.nil?
-          totals = []
-          ds.compact.each do |mds|
-            mds.each_with_index do |v, index|
-              next if v.nil?
-              totals[index] ||= 0
-              totals[index] += v
-            end
+    ds.each do |mds|
+      # global limits override individuals. is this preferred?
+      mds[:min_value] = @min_value if not @min_value.nil?
+      mds[:max_value] = @max_value if not @max_value.nil?
+
+      # TODO: can you have grouped stacked bars?
+      if @type == :bar and not grouped and mds[:data].first.is_a?(Array)
+        mds[:min_value] ||= mds[:data].first.to_a.compact.min
+        totals = []
+        mds[:data].each do |l|
+          l.each_with_index do |v, index|
+            next if v.nil?
+            totals[index] ||= 0
+            totals[index] += v
           end
-          @max_value = totals.compact.max
         end
+        mds[:max_value] ||= totals.compact.max
       else
-        @min_value = ds.compact.map{|mds| mds.compact.min}.min if @min_value.nil?
-        @max_value = ds.compact.map{|mds| mds.compact.max}.max if @max_value.nil?
+        all = mds[:data].flatten.compact
+        mds[:min_value] ||= all.min
+        mds[:max_value] ||= all.max
       end
-      @axis << [@min_value, @max_value]
     end
 
     if not @axis_range
-      @axis_range = @axis.map{|axis| axis.nil? ? [] : axis}
-      if @type != :line_xy and (@type != :bar or not @horizontal)
+      @axis_range = ds.map{|mds| [mds[:min_value], mds[:max_value]]}
+      if dimensions == 1 and (@type != :bar or not @horizontal)
         tmp = @axis_range.fetch(0, [])
         @axis_range[0] = @axis_range.fetch(1, [])
         @axis_range[1] = tmp
       end
     end
   end
-  
-  def dataset
-    @dataset ||= prepare_dataset(data)
+
+  def number_visible
+    n = 0
+    axis_set.each do |mds|
+      return n.to_s if mds[:invisible] == true
+      if mds[:data].first.is_a?(Array)
+        n += mds[:data].length
+      else
+        n += 1
+      end
+    end
+    ""
+  end
+
+  # Turns input into an array of axis hashes, dependent on the chart type
+  def convert_dataset(ds)
+    if dimensions == 2
+      # valid inputs include:
+      # an array of >=2 arrays, or an array of >=2 hashes
+      ds = ds.map do |d|
+        d.is_a?(Hash) ? d : {:data => d}
+      end
+    elsif dimensions == 1
+      # valid inputs include:
+      # a hash, an array of data, an array of >=1 array, or an array of >=1 hash
+      if ds.is_a?(Hash)
+        ds = [ds]
+      elsif not ds.first.is_a?(Hash)
+        ds = [{:data => ds}]
+      end
+    end
+    ds
+  end
+
+  def prepare_dataset
+    @dataset = convert_dataset(data || [])
     full_data_range(@dataset)
+  end
+
+  def axis_set
     @dataset
   end
-  
+
+  def dataset
+    datasets = []
+    @dataset.each do |d|
+      if d[:data].first.is_a?(Array)
+        datasets += d[:data]
+      else
+        datasets << d[:data]
+      end
+    end
+    datasets
+  end
+
   def self.jstize(string)
     string.gsub(' ', '+').gsub(/\[|\{|\}|\||\\|\^|\[|\]|\`|\]/) {|c| "%#{c[0].to_s(16).upcase}"}
   end    
@@ -376,7 +416,6 @@ class Gchart
     # a passed axis_range should look like:
     # [[10,100]] or [[10,100,4]] or [[10,100], [20,300]]
     # in the second example, 4 is the interval 
-    dataset # just making sure we processed the data before
     if axis_range && axis_range.respond_to?(:each) && axis_range.first.respond_to?(:each)
      'chxr=' + axis_range.enum_for(:each_with_index).map{|range, index| [index, range[0], range[1], range[2]].compact.join(',')}.join("|")
     else
@@ -423,33 +462,34 @@ class Gchart
       'ls'
     end
   end
-  
-  # Wraps a single dataset inside another array to support more datasets
-  def prepare_dataset(ds)
-    ds = [ds] unless ds.first.is_a?(Array)
-    ds
-  end
 
   def encode_scaled_dataset chars, nil_char
-    dataset.enum_with_index.map do |ds, index|
+    dsets = []
+    axis_set.each do |ds|
       if @max_value != false
-        ax = @axis[index%dimensions]
-        min = ax[0]
-        range = ax[1] - min
+        range = ds[:max_value] - ds[:min_value]
         range = 1 if range == 0
       end
-      ds.map do |number|
-       if number.nil?
-         nil_char
-       else
-         if not range.nil?
-           number = chars.size * (number - min) / range
-           number = [number, chars.size - 1].min
-         end
-         chars[number.to_i]
-       end
-      end.join
-    end.join(',')
+      if not ds[:data].first.is_a?(Array)
+        datasets = [ds[:data]]
+      else
+        datasets = ds[:data]
+      end
+      datasets.each do |l|
+        dsets << l.map do |number|
+          if number.nil?
+            nil_char
+          else
+            if not range.nil?
+              number = chars.size * (number - ds[:min_value]) / range
+              number = [number, chars.size - 1].min
+            end
+            chars[number.to_i]
+          end
+        end.join
+      end
+    end
+    dsets.join(',')
   end
 
   # http://code.google.com/apis/chart/#simple
@@ -457,7 +497,7 @@ class Gchart
   # Allowing five pixels per data point, this is sufficient for line and bar charts up
   # to about 300 pixels. Simple encoding is suitable for all other types of chart regardless of size.
   def simple_encoding
-    "s:" + encode_scaled_dataset(@@simple_chars, '_')
+    "s" + number_visible + ":" + encode_scaled_dataset(@@simple_chars, '_')
   end
 
   # http://code.google.com/apis/chart/#text
@@ -473,19 +513,19 @@ class Gchart
   # This encoding is not available for maps.
   #
   def text_encoding
-    # TODO: text encoding should use @axis too
-    "t:" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=#{@min_value},#{@max_value}"
+    chds = axis_set.map{ |ds| "#{ds[:min_value]},#{ds[:max_value]}" }.join(",")
+    "t" + number_visible + ":" + dataset.map{ |ds| ds.join(',') }.join('|') + "&chds=" + chds
   end
 
   # http://code.google.com/apis/chart/#extended
   # Extended encoding has a resolution of 4,096 different values 
   # and is best used for large charts where a large data range is required.
   def extended_encoding
-    "e:" + encode_scaled_dataset(@@ext_pairs, '__')
+    "e" + number_visible + ":" + encode_scaled_dataset(@@ext_pairs, '__')
   end
 
   def query_builder(options="")
-    dataset 
+    prepare_dataset
     query_params = instance_variables.map do |var|
       case var
       when '@data'
