@@ -137,14 +137,21 @@ class Gchart
   def full_data_range(ds)
     return if @max_value == false
 
-    ds.each do |mds|
+    ds.each_with_index do |mds, mds_index|
       # global limits override individuals. is this preferred?
       mds[:min_value] = @min_value if not @min_value.nil?
       mds[:max_value] = @max_value if not @max_value.nil?
 
       # TODO: can you have grouped stacked bars?
-      if @type == :bar and not grouped and mds[:data].first.is_a?(Array)
-        mds[:min_value] ||= mds[:data].first.to_a.compact.min
+      
+      if mds_index == 0 and @type == :bar
+        # TODO: unless you specify a zero line (using chp or chds),
+        #       the min_value of a bar chart is always 0.
+        #mds[:min_value] ||= mds[:data].first.to_a.compact.min
+        mds[:min_value] ||= 0
+      end
+      if (mds_index == 0 and @type == :bar and
+          not grouped and mds[:data].first.is_a?(Array))
         totals = []
         mds[:data].each do |l|
           l.each_with_index do |v, index|
