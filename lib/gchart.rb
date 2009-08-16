@@ -141,8 +141,6 @@ class Gchart
       # global limits override individuals. is this preferred?
       mds[:min_value] = @min_value if not @min_value.nil?
       mds[:max_value] = @max_value if not @max_value.nil?
-
-      # TODO: can you have grouped stacked bars?
       
       if mds_index == 0 and @type == :bar
         # TODO: unless you specify a zero line (using chp or chds),
