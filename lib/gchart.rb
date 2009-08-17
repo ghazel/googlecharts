@@ -486,7 +486,7 @@ class Gchart
             nil_char
           else
             if not range.nil?
-              number = chars.size * (number - ds[:min_value]) / range
+              number = chars.size * (number - ds[:min_value]) / range.to_f
               number = [number, chars.size - 1].min
             end
             chars[number.to_i]
