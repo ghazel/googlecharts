@@ -1,5 +1,5 @@
 Gem::Specification.new do |s|
-  s.name = %q{ghazel-googlecharts}
+  s.name = %q{googlecharts}
   s.version = "1.4.0.4"
 
   s.specification_version = 2 if s.respond_to? :specification_version=
