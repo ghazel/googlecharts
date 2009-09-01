@@ -3,7 +3,7 @@ module GchartInfo #:nodoc:
     MAJOR = 1
     MINOR = 4
     TINY  = 0
-    MICRO = 4
+    MICRO = 5
 
     STRING = [MAJOR, MINOR, TINY].join('.')
   end

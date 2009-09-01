@@ -407,7 +407,7 @@ class Gchart
     end
     labels_arr.map! do |index,labels|
       if labels.is_a?(Array)
-        "#{index}:|#{labels.to_a.join('|')}"
+        "#{index}:|#{labels.map{|label| "#{CGI::escape(label)}"}.join('|')}"
       else
         "#{index}:|#{labels}"
       end
