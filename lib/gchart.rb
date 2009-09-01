@@ -388,7 +388,7 @@ class Gchart
   
   def set_labels
      if @legend.is_a?(Array)
-        "chl=#{@legend.map{|label| "#{label}"}.join('|')}"
+        "chl=#{@legend.map{|label| "#{CGI::escape(label)}"}.join('|')}"
       else
         "chl=#{@legend}"
       end
